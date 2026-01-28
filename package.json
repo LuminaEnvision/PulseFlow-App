@@ -1,0 +1,19 @@
+{
+  "name": "pulse",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Pulse — data-first wellness platform. One rhythm. One score.",
+  "scripts": {
+    "dev": "echo 'Run apps individually: apps/web, apps/api, apps/ai-engine'",
+    "build": "echo 'Build all apps'",
+    "test": "echo 'Run tests'"
+  },
+  "keywords": [
+    "wellness",
+    "health",
+    "daily-pulse",
+    "data-first"
+  ],
+  "author": "",
+  "license": "UNLICENSED"
+}

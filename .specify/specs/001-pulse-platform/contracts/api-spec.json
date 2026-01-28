@@ -1,0 +1,328 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "Pulse Platform API",
+    "version": "1.0.0",
+    "description": "API for Pulse personal wellness platform - data submission, Daily Pulse calculation, trends, and premium features"
+  },
+  "servers": [
+    {
+      "url": "https://api.pulse.app/v1",
+      "description": "Production server"
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    },
+    "schemas": {
+      "DataEntry": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "user_id": { "type": "string", "format": "uuid" },
+          "data_type": { "type": "string", "enum": ["food_photo", "movement", "body_metric", "lifestyle"] },
+          "submitted_at": { "type": "string", "format": "date-time" },
+          "data_date": { "type": "string", "format": "date" },
+          "data_content": { "type": "object" },
+          "processing_status": { "type": "string", "enum": ["pending", "processing", "completed", "failed"] }
+        }
+      },
+      "DailyPulse": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "user_id": { "type": "string", "format": "uuid" },
+          "pulse_date": { "type": "string", "format": "date" },
+          "score": { "type": "integer", "minimum": 0, "maximum": 100 },
+          "calculated_at": { "type": "string", "format": "date-time" },
+          "guidance": {
+            "type": "object",
+            "properties": {
+              "food": { "type": "object" },
+              "movement": { "type": "object" },
+              "recovery": { "type": "object" }
+            }
+          },
+          "explanation": { "type": "string" }
+        }
+      },
+      "Error": {
+        "type": "object",
+        "properties": {
+          "error": { "type": "string" },
+          "message": { "type": "string" },
+          "code": { "type": "integer" }
+        }
+      }
+    }
+  },
+  "paths": {
+    "/data/entries": {
+      "post": {
+        "summary": "Submit personal data entry",
+        "tags": ["Data"],
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "data_type": { "type": "string", "enum": ["food_photo", "movement", "body_metric", "lifestyle"] },
+                  "data_date": { "type": "string", "format": "date" },
+                  "data_content": { "type": "object" },
+                  "image": { "type": "string", "format": "binary" }
+                },
+                "required": ["data_type", "data_date"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Data entry created",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/DataEntry" }
+              }
+            }
+          },
+          "400": { "description": "Invalid input", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
+          "401": { "description": "Unauthorized" },
+          "429": { "description": "Rate limit exceeded" }
+        }
+      },
+      "get": {
+        "summary": "Get user's data entries",
+        "tags": ["Data"],
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "data_type", "in": "query", "schema": { "type": "string", "enum": ["food_photo", "movement", "body_metric", "lifestyle"] } },
+          { "name": "start_date", "in": "query", "schema": { "type": "string", "format": "date" } },
+          { "name": "end_date", "in": "query", "schema": { "type": "string", "format": "date" } },
+          { "name": "limit", "in": "query", "schema": { "type": "integer", "default": 50 } }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of data entries",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "entries": {
+                      "type": "array",
+                      "items": { "$ref": "#/components/schemas/DataEntry" }
+                    },
+                    "total": { "type": "integer" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/pulse/daily": {
+      "get": {
+        "summary": "Get Daily Pulse for a date",
+        "tags": ["Pulse"],
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "date", "in": "query", "schema": { "type": "string", "format": "date" }, "description": "Date for pulse (defaults to today)" }
+        ],
+        "responses": {
+          "200": {
+            "description": "Daily Pulse",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/DailyPulse" }
+              }
+            }
+          },
+          "404": { "description": "Pulse not found for date" }
+        }
+      },
+      "post": {
+        "summary": "Calculate/trigger Daily Pulse calculation",
+        "tags": ["Pulse"],
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "date": { "type": "string", "format": "date" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Daily Pulse calculated",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/DailyPulse" }
+              }
+            }
+          },
+          "400": { "description": "Insufficient data for calculation" }
+        }
+      }
+    },
+    "/pulse/history": {
+      "get": {
+        "summary": "Get Daily Pulse history",
+        "tags": ["Pulse"],
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "start_date", "in": "query", "schema": { "type": "string", "format": "date" } },
+          { "name": "end_date", "in": "query", "schema": { "type": "string", "format": "date" } },
+          { "name": "limit", "in": "query", "schema": { "type": "integer", "default": 30 } }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of Daily Pulse records",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "pulses": {
+                      "type": "array",
+                      "items": { "$ref": "#/components/schemas/DailyPulse" }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/trends": {
+      "get": {
+        "summary": "Get user trends and patterns",
+        "tags": ["Trends"],
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "analysis_type", "in": "query", "schema": { "type": "string", "enum": ["basic", "advanced"] }, "description": "basic for free, advanced for premium" },
+          { "name": "start_date", "in": "query", "schema": { "type": "string", "format": "date" } },
+          { "name": "end_date", "in": "query", "schema": { "type": "string", "format": "date" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Trend analysis",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "trend_data": { "type": "object" },
+                    "baseline_comparison": { "type": "object" }
+                  }
+                }
+              }
+            }
+          },
+          "403": { "description": "Premium feature requires token staking" }
+        }
+      }
+    },
+    "/premium/stake": {
+      "post": {
+        "summary": "Stake tokens for premium access",
+        "tags": ["Premium"],
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "amount": { "type": "number" },
+                  "transaction_hash": { "type": "string" },
+                  "network": { "type": "string", "enum": ["ethereum", "polygon"] }
+                },
+                "required": ["amount", "transaction_hash", "network"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Token staking successful",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": { "type": "string" },
+                    "premium_until": { "type": "string", "format": "date-time" }
+                  }
+                }
+              }
+            }
+          },
+          "400": { "description": "Invalid stake amount or transaction" }
+        }
+      }
+    },
+    "/premium/unstake": {
+      "post": {
+        "summary": "Unstake tokens and revoke premium access",
+        "tags": ["Premium"],
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "Unstaking successful",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": { "type": "string" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/baseline": {
+      "get": {
+        "summary": "Get user's personal baseline",
+        "tags": ["Baseline"],
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "Personal baseline",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "baseline_metrics": { "type": "object" },
+                    "confidence_level": { "type": "string", "enum": ["low", "medium", "high"] },
+                    "calculated_at": { "type": "string", "format": "date-time" }
+                  }
+                }
+              }
+            }
+          },
+          "404": { "description": "Baseline not yet calculated (insufficient data)" }
+        }
+      }
+    }
+  }
+}
